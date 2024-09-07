@@ -1,1 +1,0 @@
-day 1 : learn about the data modeling and data types in the mongooses database
