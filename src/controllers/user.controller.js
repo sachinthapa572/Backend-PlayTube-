@@ -189,4 +189,47 @@ const logedOutUser = asyncHandler(async (req, res) => {
 		.json(new ApiResponse(200, {}, 'Sucessfully logout '));
 });
 
-export { registerUser, loginUser, logedOutUser };
+const RefreshAcessToken = asyncHandler(async (req, res) => {
+	const recivedToken =
+		req.cookies.refreshToken || req.body.refreshToken;
+	if (!recivedToken) {
+		throw new ApiError(401, 'Unauthorized request');
+	}
+
+	const decodedToken = jwt.verify(
+		recivedToken,
+		process.env.REFRESH_TOKEN_SECRET
+	);
+
+	const user = await User.findById(decodedToken?._id);
+
+	if (!user) {
+		throw new ApiError(401, 'Invalid Refresh Token');
+	}
+	// compare the refreshtoken send by the user and in the database one
+	if (recivedToken !== user?.refreshToken) {
+		throw new ApiError(401, 'refresh token is expired');
+	}
+	const options = {
+		httpOnly: true,
+		secure: true,
+	};
+	const { refreshToken, accessToken } =
+		await generateAccessTokenAndRefreshToken(user._id);
+	return res
+		.status(200)
+		.cookie('accessToken', accessToken, options)
+		.cookie('refreshToken', refreshToken, options)
+		.json(
+			new ApiResponse(
+				200,
+				{
+					refreshToken,
+					accessToken,
+				},
+				'Token refresh Sucessfully'
+			)
+		);
+});
+
+export { registerUser, loginUser, logedOutUser, RefreshAcessToken };
