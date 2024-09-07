@@ -19,9 +19,8 @@ import userRoute from './routes/user.routes.js';
 import { ApiError } from './utils/ApiError.js';
 app.use('/api/v1/users', userRoute); // http://localhost:800/api/v1/users/{route}
 
-
 // Error-handling middleware for Express
-app.use((err, req, res, next) => {
+app.use((err, _, res, next) => {
 	if (err instanceof ApiError) {
 		// Send JSON response for ApiError
 		return res.status(err.statusCode).json({
@@ -31,14 +30,6 @@ app.use((err, req, res, next) => {
 			stack: err.stack,
 		});
 	}
-
-	// Handle other types of errors (or generic ones)
-	return res.status(500).json({
-		success: false,
-		message: 'Internal server error',
-		stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-	});
 });
-
 
 export { app };

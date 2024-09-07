@@ -50,6 +50,7 @@ const userSchema = new Schema(
 
 // pre('save') sets up middleware that runs before a document is saved to the database.
 userSchema.pre('save', async function (next) {
+	// isModified le changed value ho ki nai vanerw check garna lai ho
 	if (!this.isModified('password')) return next();
 	this.password = await bcrypt.hash(this.password, 10);
 	next();
@@ -73,7 +74,7 @@ userSchema.methods.generateAccessToken = function () {
 		}
 	);
 };
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateRefreshToken = function () {
 	return jwt.sign(
 		{
 			_id: this._id,
