@@ -118,4 +118,8 @@ dist
 .pnp.*
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
-justdelete.html
+
+.gitignore
+HelpFiles.md
+test.js
+.gitignore
