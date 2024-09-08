@@ -3,8 +3,12 @@ import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { EMAIL_REGEX } from '../constants.js';
-import { uploadOnCloudinary } from '../utils/cloudinary.js';
-import { removeFiles } from '../utils/removeFiles.js';
+import {
+	deleteFromCloudinary,
+	uploadOnCloudinary,
+} from '../utils/cloudinary.js';
+import { removeMulterUploadFiles } from '../utils/removeMulterUploadFiles.js';
+import jwt from 'jsonwebtoken';
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
 	try {
@@ -38,12 +42,12 @@ const registerUser = asyncHandler(async (req, res) => {
 			(field) => !field || field.trim() === ''
 		)
 	) {
-		removeFiles(req.files);
+		removeMulterUploadFiles(req.files);
 		throw new ApiError(400, 'All fields are required');
 	}
 
 	if (!email.match(EMAIL_REGEX)) {
-		removeFiles(req.files);
+		removeMulterUploadFiles(req.files);
 		throw new ApiError(400, 'Invalid email ');
 	}
 
@@ -52,7 +56,7 @@ const registerUser = asyncHandler(async (req, res) => {
 		$or: [{ username }, { email }],
 	});
 	if (existedUser) {
-		removeFiles(req.files);
+		removeMulterUploadFiles(req.files);
 		throw new ApiError(409, 'User already Existed ');
 	}
 
@@ -64,7 +68,7 @@ const registerUser = asyncHandler(async (req, res) => {
 		: null;
 
 	if (!avtarLocalPath) {
-		removeFiles(req.files);
+		removeMulterUploadFiles(req.files);
 		throw new ApiError(400, 'avatar Image is required ');
 	}
 
@@ -116,7 +120,7 @@ const loginUser = asyncHandler(async (req, res) => {
 		throw new ApiError(400, 'Email is required ');
 	}
 	if (!email.match(EMAIL_REGEX)) {
-		removeFiles(req.files);
+		removeMulterUploadFiles(req.files);
 		throw new ApiError(400, 'Invalid email format');
 	}
 
@@ -192,6 +196,7 @@ const logedOutUser = asyncHandler(async (req, res) => {
 const RefreshAcessToken = asyncHandler(async (req, res) => {
 	const recivedToken =
 		req.cookies.refreshToken || req.body.refreshToken;
+	// console.log(recivedToken);
 	if (!recivedToken) {
 		throw new ApiError(401, 'Unauthorized request');
 	}
@@ -200,6 +205,7 @@ const RefreshAcessToken = asyncHandler(async (req, res) => {
 		recivedToken,
 		process.env.REFRESH_TOKEN_SECRET
 	);
+	console.log(decodedToken);
 
 	const user = await User.findById(decodedToken?._id);
 
@@ -235,7 +241,15 @@ const RefreshAcessToken = asyncHandler(async (req, res) => {
 //!check
 const changeCurrentPassword = asyncHandler(async (req, res) => {
 	const { oldPassword, newPassword } = req.body;
+	if (!oldPassword || !newPassword) {
+		throw new ApiError(
+			400,
+			'Both old and new passwords are required'
+		);
+	}
+
 	const user = await User.findById(req.user?._id);
+	// comparing the password
 	const isPasswordCorrect =
 		await user.isPasswordCorrect(oldPassword);
 
@@ -243,6 +257,12 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 		throw new ApiError(404, 'Incorrect old Password');
 	}
 
+	if (await user.isPasswordCorrect(newPassword)) {
+		throw new ApiError(
+			400,
+			'New password cannot be the same as the old password'
+		);
+	}
 	user.password = newPassword;
 	await user.save({
 		validateBeforeSave: false,
@@ -254,23 +274,28 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+	// req.user chai middleware bata aako ho
 	return res
 		.status(200)
 		.json(new ApiResponse(200, req.user, 'User fetch Sucessfully'));
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-	const { fullName, email } = req.body;
-
-	if (!(fullName || email)) {
-		throw new ApiError(400, 'Atleast one field is required');
+	const { fullName, email, username } = req.body;
+	if (!fullName && !email && !username) {
+		throw new ApiError(400, 'At least one field is required');
+	}
+	const currentUser = await User.findById(req.user?._id);
+	if (!currentUser) {
+		throw new ApiError(404, 'User not found');
 	}
 	const user = await User.findByIdAndUpdate(
 		req.user?._id,
 		{
 			$set: {
-				fullName,
-				email,
+				fullName: fullName || currentUser.fullName,
+				email: email || currentUser.email,
+				username: username || currentUser.username,
 			},
 		},
 		{
@@ -297,24 +322,29 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const Updateavatar = asyncHandler(async (req, res) => {
-	const avatarLocalPath = req.files?.avatar
-		? req.files.avatar[0]?.path
-		: null;
-
+	const avatarLocalPath = req.file ? req.file?.path : null;
 	if (!avatarLocalPath) {
+		removeMulterUploadFiles();
 		throw new ApiError(400, 'avatar Image is required ');
 	}
-
+	// upload on the cloudinary
 	const avatar = await uploadOnCloudinary(avatarLocalPath);
-
 	if (!avatar?.url) {
 		throw new ApiError(
 			400,
 			'Error while uploading the avatar image'
 		);
 	}
+	const oldUserData = await User.findById(req.user?._id);
 
-	const user = await User.findByIdAndUpdate(
+	// removed the image from the cloudinary
+
+	await deleteFromCloudinary(
+		oldUserData?.avatar.split('/').pop().split('.')[0]
+	);
+
+	// update the user
+	const updatedUser = await User.findByIdAndUpdate(
 		req.user?._id,
 		{
 			$set: {
@@ -326,34 +356,39 @@ const Updateavatar = asyncHandler(async (req, res) => {
 		}
 	).select('-password -refreshToken');
 
-	if (!user) {
-		throw new ApiError(
-			500,
-			'Something went wrong while updating the user'
-		);
+	if (!updatedUser) {
+		throw new ApiError(500, 'Error while updating the user avatar');
 	}
 	return res
 		.status(200)
 		.json(
-			new ApiResponse(200, user, 'User Avatar Updated Sucessfully')
+			new ApiResponse(
+				200,
+				updatedUser,
+				'User Avatar Updated Sucessfully'
+			)
 		);
 });
 
 const UpdateCoverImage = asyncHandler(async (req, res) => {
-	const coverImageLocalPath = req.files?.coverImage
-		? req.files.coverImage[0]?.path
-		: null;
+	const coverImageLocalPath = req.file ? req.file?.path : null;
 
 	if (!coverImageLocalPath) {
-		throw new ApiError(400, 'cover Image is required ');
+		throw new ApiError(400, 'Cover Image is required');
 	}
 
 	const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-
 	if (!coverImage?.url) {
 		throw new ApiError(
 			400,
-			'Error while uploading the cover image'
+			'Error while uploading the Cover Image'
+		);
+	}
+	const oldUserData = await User.findById(req.user?._id);
+	// removed the image from the cloudinary
+	if (oldUserData.coverImage) {
+		await deleteFromCloudinary(
+			oldUserData?.coverImage.split('/').pop().split('.')[0]
 		);
 	}
 
@@ -395,5 +430,5 @@ export {
 	changeCurrentPassword,
 	updateAccountDetails,
 	UpdateCoverImage,
-	UpdateCoverImage,
+	Updateavatar,
 };
