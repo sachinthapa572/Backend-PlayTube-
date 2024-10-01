@@ -48,9 +48,19 @@ const registerUser = asyncHandler(async (req, res) => {
 
 	if (!email.match(EMAIL_REGEX)) {
 		removeMulterUploadFiles(req.files);
-		throw new ApiError(400, 'Invalid email ');
+		throw new ApiError(400, 'Invalid email format');
 	}
-
+	//! validate the password format
+	// if (
+	// 	!password.match(
+	// 		/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/
+	// 	)
+	// ) {
+	// 	throw new ApiError(
+	// 		400,
+	// 		'Password must contain at least 8 characters, one uppercase letter, one lowercase letter and one number'
+	// 	);
+	// }
 	// if the user exist already or not
 	const existedUser = await User.findOne({
 		$or: [{ username }, { email }],
@@ -69,7 +79,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
 	if (!avtarLocalPath) {
 		removeMulterUploadFiles(req.files);
-		throw new ApiError(400, 'avatar Image is required ');
+		throw new ApiError(400, 'Avatar Image is required ');
 	}
 
 	// upload on the cloudinary
@@ -238,9 +248,9 @@ const RefreshAcessToken = asyncHandler(async (req, res) => {
 		);
 });
 
-//!check
 const changeCurrentPassword = asyncHandler(async (req, res) => {
 	const { oldPassword, newPassword } = req.body;
+
 	if (!oldPassword || !newPassword) {
 		throw new ApiError(
 			400,
@@ -257,20 +267,35 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 		throw new ApiError(404, 'Incorrect old Password');
 	}
 
+	// check if the new password is same as the old password by send the new password to the isPasswordCorrect method
 	if (await user.isPasswordCorrect(newPassword)) {
 		throw new ApiError(
 			400,
-			'New password cannot be the same as the old password'
+			'New password cannot be the same as the old password try different password'
 		);
 	}
+
+	// validation for the password
+	if (
+		!newPassword.match(
+			/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/
+		)
+	) {
+		throw new ApiError(
+			400,
+			'Password must contain at least 8 characters, one uppercase letter, one lowercase letter and one number'
+		);
+	}
+
+	// set the new password
 	user.password = newPassword;
 	await user.save({
-		validateBeforeSave: false,
+		validateBeforeSave: false, // bypass the validation
 	});
 
 	return res
 		.status(200)
-		.json(new ApiResponse(200, {}, 'Password change Sucessfully'));
+		.json(new ApiResponse(200, {}, 'Password Change Sucessfully'));
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {

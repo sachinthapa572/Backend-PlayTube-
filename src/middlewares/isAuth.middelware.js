@@ -4,14 +4,21 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import jwt from 'jsonwebtoken';
 
 const verifyJWT = asyncHandler(async (req, res, next) => {
-	// or part chai  for the mbl  as it dont have the cookies // postman bata test garda ne
 	try {
+		// or part chai  for the mbl  as it dont have the cookies // postman bata test garda ne
+		// Extract token from cookies or Authorization header
 		const token =
 			req.cookies?.accessToken ||
-			req.header('Authorization')?.replace('Bearer ', '');
+			req
+				.header('Authorization')
+				?.replace(/^Bearer\s*/, '')
+				.trim();
 
-		if (!token) {
-			throw new ApiError(401, 'Unauthorized request');
+		if (!token || token === 'undefined') {
+			throw new ApiError(
+				401,
+				'Unauthorized request: No token provided'
+			);
 		}
 
 		const decodedToken = jwt.verify(
@@ -24,12 +31,19 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 		);
 
 		if (!user) {
-			throw new ApiError(401, 'Invalid Access Token');
+			throw new ApiError(
+				401,
+				'Unauthorized request: User not found'
+			);
 		}
+
 		req.user = user;
 		next();
 	} catch (error) {
-		throw new ApiError(401, 'Invalid Access token');
+		throw new ApiError(
+			401,
+			'Unauthorized request: Invalid or expired access token'
+		);
 	}
 });
 
