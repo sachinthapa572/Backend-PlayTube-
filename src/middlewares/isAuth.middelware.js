@@ -38,7 +38,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 		}
 
 		req.user = user;
-		next();
+		next();  		// so that the next function is able to run  
 	} catch (error) {
 		throw new ApiError(
 			401,

@@ -1,9 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import morgan from "morgan"
 
 const app = express();
 
+// ==> 	middelwares	 <== 
+app.use(morgan('tiny'))
 app.use(cors());
 app.use(
 	express.json({
@@ -12,11 +15,11 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '16kb' }));
 app.use(cookieParser());
-app.use(express.static('public/css'));
+app.use(express.static('public'));
 
 // ROUTES
-import userRoute from './routes/user.routes.js';
-import { ApiError } from './utils/ApiError.js';
+import userRoute from '../routes/user.routes.js';
+import { ApiError } from '../utils/ApiError.js';
 app.use('/api/v1/users', userRoute); // http://localhost:800/api/v1/users/{route}
 
 // Error-handling middleware for Express
@@ -32,4 +35,4 @@ app.use((err, _, res, next) => {
 	}
 });
 
-export { app };
+export default app

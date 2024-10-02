@@ -1,13 +1,13 @@
-import { User } from '../models/user.models.js';
-import { ApiError } from '../utils/ApiError.js';
-import { ApiResponse } from '../utils/ApiResponse.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { EMAIL_REGEX } from '../constants.js';
+import { User } from '../../models/user.models.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { ApiResponse } from '../../utils/ApiResponse.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
+import { EMAIL_REGEX } from '../../constants.js';
 import {
 	deleteFromCloudinary,
 	uploadOnCloudinary,
-} from '../utils/cloudinary.js';
-import { removeMulterUploadFiles } from '../utils/removeMulterUploadFiles.js';
+} from '../../utils/cloudinary.js';
+import { removeMulterUploadFiles } from '../../utils/removeMulterUploadFiles.js';
 import jwt from 'jsonwebtoken';
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -124,7 +124,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
 const loginUser = asyncHandler(async (req, res) => {
 	const { email, password } = req.body;
-	console.log(email, password);
+	// console.log(email, password);
 	// return;
 	if (!email) {
 		throw new ApiError(400, 'Email is required ');
@@ -446,6 +446,78 @@ const UpdateCoverImage = asyncHandler(async (req, res) => {
 		);
 });
 
+
+//! test 
+
+const getProfileInformation = asyncHandler(async (req, res) => {
+	const { username } = req.params;
+
+	if (!username?.trim()) {
+		throw new ApiError(403, 'Channel name is required');
+	}
+
+	// Aggregation pipeline
+	const channelInfo = await User.aggregate([
+		{
+			$match: {
+				username: username.toLowerCase().trim()
+			}
+		},
+		// Lookup for Subscribers (users subscribed to this user) 
+		// lookup is the left join or simple join
+		{
+			$lookup: {
+				from: "subscriptions",
+				localField: "_id",
+				foreignField: "subscriber",
+				as: "Subscribers"
+			}
+		},
+		// Lookup for SubscribeTo (users this user is subscribed to)
+		{
+			$lookup: {
+				from: "subscriptions",
+				localField: "_id",
+				foreignField: "channel",
+				as: "SubscribeTo"
+			}
+		},
+		// adding the additional field to the above field 
+		{
+			$addFields: {
+				subscriberCount: { $size: "$Subscribers" },
+				subscribedTOCount: { $size: "$SubscribeTo" },
+				isSubscribedTo: {
+					$cond: [{ $in: [req.user._id, "$Subscribers.subscriber"] }, true, false] // Checking if the current user is in the Subscribers list
+				}
+			}
+		},
+		// Project specific fields to return or send the specifc field 
+		{
+			$project: {
+				username: 1,
+				email: 1,
+				fullName: 1,
+				avatar: 1,
+				coverImage: 1,
+				subscriberCount: 1,
+				subscribedTOCount: 1,
+				isSubscribedTo: 1
+			}
+		}
+	]);
+
+	// Check if the channel exists
+	if (!channelInfo.length) {
+		throw new ApiError(404, "Channel does not exist");
+	}
+	res.status(200).json(
+		new ApiResponse(200, channelInfo[0], "User channel fetched successfully")
+	);
+});
+
+
+
 export {
 	registerUser,
 	loginUser,
@@ -456,4 +528,5 @@ export {
 	updateAccountDetails,
 	UpdateCoverImage,
 	Updateavatar,
+	getProfileInformation
 };

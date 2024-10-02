@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
 	changeCurrentPassword,
 	getCurrentUser,
+	getProfileInformation,
 	logedOutUser,
 	loginUser,
 	RefreshAcessToken,
@@ -9,7 +10,7 @@ import {
 	updateAccountDetails,
 	Updateavatar,
 	UpdateCoverImage,
-} from '../controllers/user.controller.js';
+} from '../controllers/user/user.controller.js';
 import { upload } from '../middlewares/multer.middlewares.js';
 import { verifyJWT } from '../middlewares/isAuth.middelware.js';
 
@@ -48,4 +49,8 @@ router
 	.patch(verifyJWT, changeCurrentPassword);
 
 router.route('/refresh-token').post(RefreshAcessToken);
+
+router.route('/profile/:username').get(verifyJWT, getProfileInformation);
+
+
 export default router;
