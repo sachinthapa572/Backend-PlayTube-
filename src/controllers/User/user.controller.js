@@ -2,40 +2,15 @@ import { User } from '../../models/user.models.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ApiResponse } from '../../utils/ApiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { EMAIL_REGEX } from '../../constants.js';
-import {
-	deleteFromCloudinary,
-	uploadOnCloudinary,
-} from '../../utils/cloudinary.js';
+import { __PhotoDir, EMAIL_REGEX } from '../../constants.js';
 import { removeMulterUploadFiles } from '../../utils/removeMulterUploadFiles.js';
 import jwt from 'jsonwebtoken';
-
-const generateAccessTokenAndRefreshToken = async (userId) => {
-	try {
-		const user = await User.findById(userId);
-		const accessToken = user.generateAccessToken();
-		const refreshToken = user.generateRefreshToken();
-		user.refreshToken = refreshToken;
-		// required field ne magcha so to avoide that use validateBeforeSave(bypass validation)
-		await user.save({
-			validateBeforeSave: false,
-		});
-		return {
-			refreshToken,
-			accessToken,
-		};
-	} catch (error) {
-		throw new ApiError(
-			500,
-			'Something went wrong while generating the Token '
-		);
-	}
-};
+import mongoose from 'mongoose';
+import { generateAccessTokenAndRefreshToken } from '../../utils/authTokenGenerator.js';
+import handleImageUpload from '../../utils/handleImageUploadUtils.js';
 
 const registerUser = asyncHandler(async (req, res) => {
 	const { username, email, fullName, password } = req.body;
-	// console.log(req.body);
-	// console.log(req.files);
 	// validation
 	if (
 		[username, email, fullName, password].some(
@@ -50,24 +25,15 @@ const registerUser = asyncHandler(async (req, res) => {
 		removeMulterUploadFiles(req.files);
 		throw new ApiError(400, 'Invalid email format');
 	}
-	//! validate the password format
-	// if (
-	// 	!password.match(
-	// 		/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/
-	// 	)
-	// ) {
-	// 	throw new ApiError(
-	// 		400,
-	// 		'Password must contain at least 8 characters, one uppercase letter, one lowercase letter and one number'
-	// 	);
-	// }
+
 	// if the user exist already or not
 	const existedUser = await User.findOne({
 		$or: [{ username }, { email }],
 	});
+
 	if (existedUser) {
 		removeMulterUploadFiles(req.files);
-		throw new ApiError(409, 'User already Existed ');
+		throw new ApiError(409, 'Name already Taken');
 	}
 
 	const avtarLocalPath = req.files?.avatar
@@ -83,14 +49,19 @@ const registerUser = asyncHandler(async (req, res) => {
 	}
 
 	// upload on the cloudinary
-	const avatar = await uploadOnCloudinary(avtarLocalPath);
+	// const avatar = await uploadOnCloudinary(avtarLocalPath);
+	const avatar = await handleImageUpload(
+		avtarLocalPath,
+		null,
+		__PhotoDir.AVATAR
+	);
 	let coverImage = null;
 	if (coverImageLocalPath) {
-		coverImage = await uploadOnCloudinary(coverImageLocalPath);
-	}
-
-	if (!avatar) {
-		throw new ApiError(400, 'avatar Image is required ');
+		coverImage = await handleImageUpload(
+			coverImageLocalPath,
+			null,
+			__PhotoDir.COVERIMAGE
+		);
 	}
 
 	// create a user
@@ -112,7 +83,7 @@ const registerUser = asyncHandler(async (req, res) => {
 	if (!curretUser) {
 		throw new ApiError(
 			500,
-			'something went wrong while creating the user  '
+			'something went wrong while creating the user'
 		);
 	}
 	return res
@@ -122,7 +93,7 @@ const registerUser = asyncHandler(async (req, res) => {
 		);
 });
 
-const loginUser = asyncHandler(async (req, res) => {
+const loginUser = asyncHandler(async (req, res, next) => {
 	const { email, password } = req.body;
 	// console.log(email, password);
 	// return;
@@ -150,7 +121,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
 	// get the access and the refresh token
 	const { refreshToken, accessToken } =
-		await generateAccessTokenAndRefreshToken(Currentuser._id);
+		await generateAccessTokenAndRefreshToken(Currentuser._id, next);
 
 	//  getting the information of the user after the access and refresh token generated
 	const loginedInUser = await User.findById(Currentuser._id).select(
@@ -349,23 +320,14 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 const Updateavatar = asyncHandler(async (req, res) => {
 	const avatarLocalPath = req.file ? req.file?.path : null;
 	if (!avatarLocalPath) {
-		removeMulterUploadFiles();
-		throw new ApiError(400, 'avatar Image is required ');
-	}
-	// upload on the cloudinary
-	const avatar = await uploadOnCloudinary(avatarLocalPath);
-	if (!avatar?.url) {
-		throw new ApiError(
-			400,
-			'Error while uploading the avatar image'
-		);
+		throw new ApiError(400, 'Image is required ');
 	}
 	const oldUserData = await User.findById(req.user?._id);
 
-	// removed the image from the cloudinary
-
-	await deleteFromCloudinary(
-		oldUserData?.avatar.split('/').pop().split('.')[0]
+	const avatar = handleImageUpload(
+		avatarLocalPath,
+		oldUserData.avatar,
+		__PhotoDir.AVATAR
 	);
 
 	// update the user
@@ -384,6 +346,7 @@ const Updateavatar = asyncHandler(async (req, res) => {
 	if (!updatedUser) {
 		throw new ApiError(500, 'Error while updating the user avatar');
 	}
+
 	return res
 		.status(200)
 		.json(
@@ -399,23 +362,18 @@ const UpdateCoverImage = asyncHandler(async (req, res) => {
 	const coverImageLocalPath = req.file ? req.file?.path : null;
 
 	if (!coverImageLocalPath) {
-		throw new ApiError(400, 'Cover Image is required');
-	}
-
-	const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-	if (!coverImage?.url) {
-		throw new ApiError(
-			400,
-			'Error while uploading the Cover Image'
-		);
+		throw new ApiError(400, 'Image is required');
 	}
 	const oldUserData = await User.findById(req.user?._id);
-	// removed the image from the cloudinary
-	if (oldUserData.coverImage) {
-		await deleteFromCloudinary(
-			oldUserData?.coverImage.split('/').pop().split('.')[0]
-		);
-	}
+	const currentImage = oldUserData.coverImage
+		? oldUserData.coverImage
+		: undefined;
+
+	handleImageUpload(
+		coverImageLocalPath,
+		currentImage,
+		__PhotoDir.COVERIMAGE
+	);
 
 	const user = await User.findByIdAndUpdate(
 		req.user?._id,
@@ -446,9 +404,6 @@ const UpdateCoverImage = asyncHandler(async (req, res) => {
 		);
 });
 
-
-//! test 
-
 const getProfileInformation = asyncHandler(async (req, res) => {
 	const { username } = req.params;
 
@@ -460,39 +415,43 @@ const getProfileInformation = asyncHandler(async (req, res) => {
 	const channelInfo = await User.aggregate([
 		{
 			$match: {
-				username: username.toLowerCase().trim()
-			}
+				username: username.toLowerCase().trim(),
+			},
 		},
-		// Lookup for Subscribers (users subscribed to this user) 
+		// Lookup for Subscribers (users subscribed to this user)
 		// lookup is the left join or simple join
 		{
 			$lookup: {
-				from: "subscriptions",
-				localField: "_id",
-				foreignField: "subscriber",
-				as: "Subscribers"
-			}
+				from: 'subscriptions',
+				localField: '_id',
+				foreignField: 'subscriber',
+				as: 'Subscribers',
+			},
 		},
 		// Lookup for SubscribeTo (users this user is subscribed to)
 		{
 			$lookup: {
-				from: "subscriptions",
-				localField: "_id",
-				foreignField: "channel",
-				as: "SubscribeTo"
-			}
+				from: 'subscriptions',
+				localField: '_id',
+				foreignField: 'channel',
+				as: 'SubscribeTo',
+			},
 		},
-		// adding the additional field to the above field 
+		// adding the additional field to the above field
 		{
 			$addFields: {
-				subscriberCount: { $size: "$Subscribers" },
-				subscribedTOCount: { $size: "$SubscribeTo" },
+				subscriberCount: { $size: '$Subscribers' },
+				subscribedTOCount: { $size: '$SubscribeTo' },
 				isSubscribedTo: {
-					$cond: [{ $in: [req.user._id, "$Subscribers.subscriber"] }, true, false] // Checking if the current user is in the Subscribers list
-				}
-			}
+					$cond: [
+						{ $in: [req.user._id, '$Subscribers.subscriber'] },
+						true,
+						false,
+					], // Checking if the current user is in the Subscribers list
+				},
+			},
 		},
-		// Project specific fields to return or send the specifc field 
+		// Project specific fields to return or send the specifc field (k k return garne vanerw )
 		{
 			$project: {
 				username: 1,
@@ -502,21 +461,98 @@ const getProfileInformation = asyncHandler(async (req, res) => {
 				coverImage: 1,
 				subscriberCount: 1,
 				subscribedTOCount: 1,
-				isSubscribedTo: 1
-			}
-		}
+				isSubscribedTo: 1,
+			},
+		},
 	]);
 
 	// Check if the channel exists
 	if (!channelInfo.length) {
-		throw new ApiError(404, "Channel does not exist");
+		throw new ApiError(404, 'Channel does not exist');
 	}
 	res.status(200).json(
-		new ApiResponse(200, channelInfo[0], "User channel fetched successfully")
+		new ApiResponse(
+			200,
+			channelInfo[0],
+			'User channel fetched successfully'
+		)
 	);
 });
 
+const getWatchHistory = asyncHandler(async (req, res) => {
+	// Aggregation pipeline ==> this will get the array of the data
+	if (!mongoose.isValidObjectId(req.user._id)) {
+		return res
+			.status(400)
+			.json(new ApiResponse(400, null, 'Invalid User ID'));
+	}
 
+	// Aggregation pipeline
+	const user = await User.aggregate([
+		{
+			$match: {
+				// _id: mongoose.Types.ObjectId(req.user._id),
+				_id: mongoose.Types.ObjectId(req.user._id),
+			},
+		},
+		{
+			$lookup: {
+				from: 'videos',
+				localField: 'watchHistory',
+				foreignField: '_id',
+				as: 'watchHistory',
+				pipeline: [
+					{
+						$lookup: {
+							from: 'users',
+							localField: 'owner',
+							foreignField: '_id',
+							as: 'owner',
+							pipeline: [
+								{
+									$project: {
+										fullName: 1,
+										username: 1,
+										avatar: 1,
+									},
+								},
+							],
+						},
+					},
+					{
+						$addFields: {
+							owner: { $arrayElemAt: ['$owner', 0] },
+						},
+					},
+					{
+						$project: {
+							title: 1,
+							description: 1,
+							createdAt: 1,
+							owner: 1,
+						},
+					},
+				],
+			},
+		},
+	]);
+
+	if (!user.length || !user[0]?.watchHistory) {
+		return res
+			.status(404)
+			.json(new ApiResponse(404, null, 'Watch History not found'));
+	}
+
+	return res
+		.status(200)
+		.json(
+			new ApiResponse(
+				200,
+				user[0]?.watchHistory,
+				'Watch History fetched successfully'
+			)
+		);
+});
 
 export {
 	registerUser,
@@ -528,5 +564,6 @@ export {
 	updateAccountDetails,
 	UpdateCoverImage,
 	Updateavatar,
-	getProfileInformation
+	getProfileInformation,
+	getWatchHistory,
 };

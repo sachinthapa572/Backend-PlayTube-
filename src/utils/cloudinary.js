@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
+import { safeUnlinkSync } from './fileUtils.js';
 
 // Configuration
 cloudinary.config({
@@ -14,13 +15,14 @@ const uploadOnCloudinary = async (filePath) => {
 		if (!filePath) return;
 		const result = await cloudinary.uploader.upload(filePath, {
 			resource_type: 'auto',
+			asset_folder: `PlayTube/${folder}`,
 		});
 		// console.log(result);
 		console.log('File Upload Successful', result.url);
-		fs.unlinkSync(filePath);
+		safeUnlinkSync(filePath);
 		return result;
 	} catch (error) {
-		fs.unlinkSync(filePath);
+		safeUnlinkSync(filePath);
 		console.error('cloudinary Upload Error !! ', error);
 		return null;
 	}

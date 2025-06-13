@@ -1,47 +1,46 @@
-// sadai same huncha yei ho every time
-import multer, { diskStorage } from 'multer';
+import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
+import { allowedTypesFileTypes } from '../constants.js';
+import { ApiError } from '../utils/ApiError.js';
+
 const storage = multer.diskStorage({
 	destination: function (req, file, cb) {
 		cb(null, './public/temp/');
 	},
 	filename: function (req, file, cb) {
-		cb(null, Date.now() + '-' + file.originalname);
+		const safeFilename = file.originalname.replace(
+			/[^a-zA-Z0-9.-]/g,
+			'_'
+		);
+		const uniqueSuffix = uuidv4();
+		const fileExtension = file.originalname.split('.').pop();
+		cb(null, `${uniqueSuffix}-${safeFilename}.${fileExtension}`);
 	},
 });
+
 // cb(a)==> error   cb(a, b) ==> sucess
 // File filter to accept only specific file types (e.g., images and videos)
 function fileFilter(req, file, cb) {
-	const allowedTypes = ['image/jpeg', 'image/png'];
-	if (allowedTypes.includes(file.mimetype)) {
-		cb(null, true); // accept file
-	} else {
-		// cb(null, false); // reject file
-		cb(
-			new Error(
-				'Invalid file type. Only JPG, PNG, and MP4 files are allowed.'
-			)
-		);
+	try {
+		const mimeType = file.mimetype;
+
+		// Validate MIME type
+		if (!allowedTypesFileTypes.includes(mimeType)) {
+			return cb(
+				new ApiError(
+					415,
+					'Invalid file type. Only JPG, PNG ,JPEG , MP4  files are allowed.'
+				)
+			);
+		}
+		cb(null, true);
+	} catch (error) {
+		cb(new ApiError(500, 'Error processing file.'));
 	}
 }
 const upload = multer({
 	storage: storage,
 	fileFilter: fileFilter,
-	limits: {
-		fileSize: 1024 * 1024 * 50, // Set file size limit to 50 MB
-	},
 });
 
 export { upload };
-
-// to handel this error use the middelware
-
-// app.use((err, req, res, next) => {
-// 	if (err.code === 'LIMIT_FILE_SIZE') {
-// 		return res
-// 			.status(413)
-// 			.json({ error: 'File size exceeds the limit of 50MB.' });
-// 	}
-// 	next(err);
-// });
-
-//* This ensures that any file uploaded through the multer middleware will be limited to 50 MB. If the file exceeds this limit, multer will throw a LIMIT_FILE_SIZE error.

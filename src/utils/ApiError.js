@@ -11,12 +11,11 @@ class ApiError extends Error {
 		this.message = message;
 		this.success = false;
 		this.errors = errors;
-		this.stack = stack|| Error.captureStackTrace(this, this.constructor);;
+		this.stack =
+			stack || Error.captureStackTrace(this, this.constructor);
 	}
 }
 
 export { ApiError };
 
 // default Error class lai extend gare rw ApiError class banako ho. for the own error handling.
-
-// throw new Error('Not implemented');

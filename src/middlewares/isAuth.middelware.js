@@ -3,7 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import jwt from 'jsonwebtoken';
 
-const verifyJWT = asyncHandler(async (req, res, next) => {
+const isAuth = asyncHandler(async (req, res, next) => {
 	try {
 		// or part chai  for the mbl  as it dont have the cookies // postman bata test garda ne
 		// Extract token from cookies or Authorization header
@@ -38,7 +38,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 		}
 
 		req.user = user;
-		next();  		// so that the next function is able to run  
+		next(); // so that the next function is able to run
 	} catch (error) {
 		throw new ApiError(
 			401,
@@ -47,4 +47,4 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 	}
 });
 
-export { verifyJWT };
+export { isAuth };
