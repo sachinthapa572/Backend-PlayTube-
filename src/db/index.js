@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
-import { ApiError } from '../utils/ApiError.js';
+
+const MONGO_URL =
+	'mongodb+srv://adminadmin:BGz7LXh0nsftg0fX@project.mzyde.mongodb.net';
 const connectdb = async () => {
 	try {
-		const connectionInstance = await mongoose.connect(
-			`${process.env.MOGO_URI}/${process.env.MOGO_DB_NAME}`
-		);
+		const connectionInstance = await mongoose.connect(MONGO_URL);
 		console.log(
 			` MongoDB connected !! DB Name:${connectionInstance.connection.name}`
 		);
