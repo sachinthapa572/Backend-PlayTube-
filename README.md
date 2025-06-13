@@ -1,0 +1,2 @@
+# Backend-PlayTube-
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/9ac631abb90f45c99814c8408f43d4a8)](https://app.codacy.com/gh/sachinthapa572/Backend-PlayTube-?utm_source=github.com&utm_medium=referral&utm_content=sachinthapa572/Backend-PlayTube-&utm_campaign=Badge_Grade)
