@@ -1,0 +1,9 @@
+# Ignore artifacts and folders for Prettier
+node_modules/
+build/
+dist/
+coverage/
+public/temp/
+*.log
+*.tmp
+.env

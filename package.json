@@ -4,16 +4,17 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.js",
+    "build": "tsc",
+    "dev": "bun --watch src/index.ts",
     "format": "biome format --write .",
-    "lint": "biome lint --write ."
+    "lint": "biome lint --write .",
+    "check": "bunx tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "cloudinary": "^2.4.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -23,12 +24,25 @@
     "mongoose": "^8.9.5",
     "mongoose-aggregate-paginate-v2": "^1.1.2",
     "multer": "^1.4.5-lts.1",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.1.0",
+    "@biomejs/biome": "2.0.6",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/bun": "latest",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.0.10",
+    "@types/uuid": "^10.0.0",
     "morgan": "^1.10.0",
     "nodemon": "^3.1.7",
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
   }
 }
