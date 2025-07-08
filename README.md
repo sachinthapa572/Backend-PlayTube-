@@ -1,1 +1,0 @@
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/057bf5d5542a4f0c8b3dacca04c8331c)](https://app.codacy.com/gh/sachinthapa572/Backend-PlayTube-/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
